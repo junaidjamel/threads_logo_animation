@@ -25,8 +25,6 @@ class _SplashViewState extends State<SplashView>
       duration: const Duration(milliseconds: 2000),
     );
 
-    // Phase 1 (0→80%): draw the logo
-    // Phase 2 (80→100%): hold fully drawn, then fade overlay out
     _draw = TweenSequence<double>([
       TweenSequenceItem(
         tween: Tween(
@@ -94,6 +92,10 @@ class _ThreadsPainter extends CustomPainter {
 
   static const double _vbW = 166.0;
   static const double _vbH = 192.0;
+
+  // The fraction along _pathOuter where the top-right tip lives.
+  // This is where (164.566, 60.288) sits — tune slightly if needed.
+  static const double _outerShift = 0.08;
 
   static Path get _logoFillPath {
     final p = Path()..fillType = PathFillType.evenOdd;
@@ -264,7 +266,6 @@ class _ThreadsPainter extends CustomPainter {
 
     canvas.save();
     canvas.scale(scaleX, scaleY);
-
     canvas.clipPath(_logoFillPath);
 
     final paint = Paint()
@@ -282,10 +283,39 @@ class _ThreadsPainter extends CustomPainter {
     final lenInner = mInner.fold<double>(0, (s, m) => s + m.length);
     final total = lenOuter + lenInner;
 
-    final globalEnd = draw * total;
+    // How far along the outer path the top-right tip is.
+    // (164.566, 60.288) is early in the path — roughly 8%.
+    // Tune this if the start point feels slightly off.
+    final shiftLen = lenOuter * _outerShift;
 
-    _drawSegment(canvas, mOuter, globalEnd, 0, paint);
-    _drawSegment(canvas, mInner, globalEnd, lenOuter, paint);
+    // Total draw progress in path-length units
+    final drawn = draw * total;
+
+    // --- Draw outer path, shifted so it starts from the tip ---
+    // The outer path is split into two virtual segments:
+    //   Seg A: shiftLen → lenOuter  (draws first)
+    //   Seg B: 0        → shiftLen  (draws second, wraps around)
+    final segA = lenOuter - shiftLen;
+    final segB = shiftLen;
+
+    final drawOuter = drawn.clamp(0.0, lenOuter);
+    final drawA = drawOuter.clamp(0.0, segA);
+    final drawB = (drawOuter - segA).clamp(0.0, segB);
+
+    for (final m in mOuter) {
+      if (drawA > 0) {
+        canvas.drawPath(m.extractPath(shiftLen, shiftLen + drawA), paint);
+      }
+      if (drawB > 0) {
+        canvas.drawPath(m.extractPath(0, drawB), paint);
+      }
+    }
+
+    // --- Draw inner path after outer is fully done ---
+    final drawInner = (drawn - lenOuter).clamp(0.0, lenInner);
+    if (drawInner > 0) {
+      _drawSegment(canvas, mInner, drawInner, paint);
+    }
 
     canvas.restore();
   }
@@ -293,18 +323,15 @@ class _ThreadsPainter extends CustomPainter {
   void _drawSegment(
     Canvas canvas,
     List<PathMetric> metrics,
-    double globalEnd,
-    double offset,
+    double length,
     Paint paint,
   ) {
-    double pos = offset;
+    double remaining = length;
     for (final m in metrics) {
-      final localE = (globalEnd - pos).clamp(0.0, m.length);
-      if (localE > 0) {
-        canvas.drawPath(m.extractPath(0, localE), paint);
-      }
-      pos += m.length;
-      if (pos >= globalEnd) break;
+      final take = remaining.clamp(0.0, m.length);
+      if (take > 0) canvas.drawPath(m.extractPath(0, take), paint);
+      remaining -= take;
+      if (remaining <= 0) break;
     }
   }
 
