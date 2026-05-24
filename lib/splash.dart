@@ -1,5 +1,4 @@
 import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
 class SplashView extends StatefulWidget {
@@ -93,13 +92,14 @@ class _ThreadsPainter extends CustomPainter {
   static const double _vbW = 166.0;
   static const double _vbH = 192.0;
 
-  // The fraction along _pathOuter where the top-right tip lives.
-  // This is where (164.566, 60.288) sits — tune slightly if needed.
-  static const double _outerShift = 0.08;
+  // Cached metrics so we don't recompute every frame
+  static List<PathMetric>? _outerMetrics;
+  static List<PathMetric>? _innerMetrics;
+  static double? _cachedOuterLen;
+  static double? _cachedInnerLen;
 
   static Path get _logoFillPath {
     final p = Path()..fillType = PathFillType.evenOdd;
-
     p.moveTo(84.0664, 0.5);
     p.lineTo(85.375, 0.515625);
     p.cubicTo(112.756, 0.988837, 133.992, 10.345, 148.577, 28.2881);
@@ -158,7 +158,6 @@ class _ThreadsPainter extends CustomPainter {
     p.cubicTo(34.347, 10.38, 55.3365, 0.988868, 82.6553, 0.515625);
     p.lineTo(83.9609, 0.5);
     p.lineTo(84.0664, 0.5);
-
     p.moveTo(91.8711, 97.9678);
     p.cubicTo(89.9664, 97.9678, 88.0274, 98.0231, 86.0518, 98.1377);
     p.cubicTo(77.3984, 98.6364, 71.5623, 100.983, 67.9326, 104.211);
@@ -172,16 +171,13 @@ class _ThreadsPainter extends CustomPainter {
     p.lineTo(109.349, 99.7441);
     p.cubicTo(104.007, 98.5767, 98.1379, 97.9678, 91.8711, 97.9678);
     p.close();
-
     return p;
   }
 
-  static Path get _pathOuter {
+  // Outer path — starts from the top-right tip
+  static Path get _outerPath {
     final p = Path();
-    p.moveTo(84.0664, 0.5);
-    p.lineTo(85.375, 0.515625);
-    p.cubicTo(112.756, 0.988837, 133.992, 10.345, 148.577, 28.2881);
-    p.cubicTo(155.8, 37.1738, 161.137, 47.873, 164.566, 60.2881);
+    p.moveTo(164.566, 60.2881);
     p.lineTo(149.385, 64.3379);
     p.cubicTo(146.531, 54.1871, 142.245, 45.4518, 136.572, 38.4717);
     p.cubicTo(124.811, 24.0012, 107.101, 16.6112, 84.0166, 16.4404);
@@ -236,10 +232,14 @@ class _ThreadsPainter extends CustomPainter {
     p.cubicTo(34.347, 10.38, 55.3365, 0.988868, 82.6553, 0.515625);
     p.lineTo(83.9609, 0.5);
     p.lineTo(84.0664, 0.5);
+    p.lineTo(85.375, 0.515625);
+    p.cubicTo(112.756, 0.988837, 133.992, 10.345, 148.577, 28.2881);
+    p.cubicTo(155.8, 37.1738, 161.137, 47.873, 164.566, 60.2881);
     return p;
   }
 
-  static Path get _pathInner {
+  // Inner path — completely separate, drawn only after outer is 100% done
+  static Path get _innerPath {
     final p = Path();
     p.moveTo(91.8711, 97.9678);
     p.cubicTo(89.9664, 97.9678, 88.0274, 98.0231, 86.0518, 98.1377);
@@ -255,11 +255,25 @@ class _ThreadsPainter extends CustomPainter {
     p.cubicTo(104.007, 98.5767, 98.1379, 97.9678, 91.8711, 97.9678);
     p.close();
     return p;
+  }
+
+  void _ensureMetrics() {
+    if (_outerMetrics != null) return;
+    _outerMetrics = _outerPath.computeMetrics().toList();
+    _innerMetrics = _innerPath.computeMetrics().toList();
+    _cachedOuterLen = _outerMetrics!.fold(0.0, (s, m) => s! + m.length);
+    _cachedInnerLen = _innerMetrics!.fold(0.0, (s, m) => s! + m.length);
   }
 
   @override
   void paint(Canvas canvas, Size size) {
     if (draw <= 0.0) return;
+
+    _ensureMetrics();
+
+    final lenOuter = _cachedOuterLen!;
+    final lenInner = _cachedInnerLen!;
+    final total = lenOuter + lenInner;
 
     final scaleX = size.width / _vbW;
     final scaleY = size.height / _vbH;
@@ -271,68 +285,36 @@ class _ThreadsPainter extends CustomPainter {
     final paint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 60.0
+      ..strokeWidth = 30.0
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..isAntiAlias = true;
 
-    final mOuter = _pathOuter.computeMetrics().toList();
-    final mInner = _pathInner.computeMetrics().toList();
-
-    final lenOuter = mOuter.fold<double>(0, (s, m) => s + m.length);
-    final lenInner = mInner.fold<double>(0, (s, m) => s + m.length);
-    final total = lenOuter + lenInner;
-
-    // How far along the outer path the top-right tip is.
-    // (164.566, 60.288) is early in the path — roughly 8%.
-    // Tune this if the start point feels slightly off.
-    final shiftLen = lenOuter * _outerShift;
-
-    // Total draw progress in path-length units
     final drawn = draw * total;
 
-    // --- Draw outer path, shifted so it starts from the tip ---
-    // The outer path is split into two virtual segments:
-    //   Seg A: shiftLen → lenOuter  (draws first)
-    //   Seg B: 0        → shiftLen  (draws second, wraps around)
-    final segA = lenOuter - shiftLen;
-    final segB = shiftLen;
-
+    // Draw outer — fully, up to how much progress we have
     final drawOuter = drawn.clamp(0.0, lenOuter);
-    final drawA = drawOuter.clamp(0.0, segA);
-    final drawB = (drawOuter - segA).clamp(0.0, segB);
-
-    for (final m in mOuter) {
-      if (drawA > 0) {
-        canvas.drawPath(m.extractPath(shiftLen, shiftLen + drawA), paint);
-      }
-      if (drawB > 0) {
-        canvas.drawPath(m.extractPath(0, drawB), paint);
-      }
-    }
-
-    // --- Draw inner path after outer is fully done ---
-    final drawInner = (drawn - lenOuter).clamp(0.0, lenInner);
-    if (drawInner > 0) {
-      _drawSegment(canvas, mInner, drawInner, paint);
-    }
-
-    canvas.restore();
-  }
-
-  void _drawSegment(
-    Canvas canvas,
-    List<PathMetric> metrics,
-    double length,
-    Paint paint,
-  ) {
-    double remaining = length;
-    for (final m in metrics) {
+    double remaining = drawOuter;
+    for (final m in _outerMetrics!) {
       final take = remaining.clamp(0.0, m.length);
       if (take > 0) canvas.drawPath(m.extractPath(0, take), paint);
       remaining -= take;
       if (remaining <= 0) break;
     }
+
+    // Draw inner — only starts after outer is 100% complete
+    if (drawn > lenOuter) {
+      final drawInner = (drawn - lenOuter).clamp(0.0, lenInner);
+      double rem = drawInner;
+      for (final m in _innerMetrics!) {
+        final take = rem.clamp(0.0, m.length);
+        if (take > 0) canvas.drawPath(m.extractPath(0, take), paint);
+        rem -= take;
+        if (rem <= 0) break;
+      }
+    }
+
+    canvas.restore();
   }
 
   @override
