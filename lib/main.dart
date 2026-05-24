@@ -10,19 +10,12 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-
-      child: MaterialApp(
-        title: 'Threads Clone',
-
-        themeMode: ThemeMode.dark,
-        debugShowCheckedModeBanner: false,
-        home: const SplashView(
-          child: Scaffold(body: Center(child: Text('Animation'))),
-        ),
-      ),
+    return MaterialApp(
+      title: 'Threads Logo Animation',
+      themeMode: ThemeMode.dark,
+      theme: ThemeData(scaffoldBackgroundColor: Color(0xFF101010)),
+      debugShowCheckedModeBanner: false,
+      home: const SplashView(child: Scaffold()),
     );
   }
 }
