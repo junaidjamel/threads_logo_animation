@@ -14,7 +14,6 @@ class _SplashViewState extends State<SplashView>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
   late final Animation<double> _draw;
-  late final Animation<double> _undraw;
   late final Animation<double> _overlayFade;
   bool _done = false;
 
@@ -23,41 +22,30 @@ class _SplashViewState extends State<SplashView>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2200),
+      duration: const Duration(milliseconds: 2000),
     );
 
+    // Phase 1 (0→80%): draw the logo
+    // Phase 2 (80→100%): hold fully drawn, then fade overlay out
     _draw = TweenSequence<double>([
       TweenSequenceItem(
         tween: Tween(
           begin: 0.0,
           end: 1.0,
         ).chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 40,
+        weight: 80,
       ),
-      TweenSequenceItem(tween: ConstantTween(1.0), weight: 60),
-    ]).animate(_ctrl);
-
-    _undraw = TweenSequence<double>([
-      TweenSequenceItem(tween: ConstantTween(0.0), weight: 40),
-      TweenSequenceItem(tween: ConstantTween(0.0), weight: 25),
-      TweenSequenceItem(
-        tween: Tween(
-          begin: 0.0,
-          end: 1.0,
-        ).chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 30,
-      ),
-      TweenSequenceItem(tween: ConstantTween(1.0), weight: 5),
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 20),
     ]).animate(_ctrl);
 
     _overlayFade = TweenSequence<double>([
-      TweenSequenceItem(tween: ConstantTween(1.0), weight: 95),
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 85),
       TweenSequenceItem(
         tween: Tween(
           begin: 1.0,
           end: 0.0,
         ).chain(CurveTween(curve: Curves.easeIn)),
-        weight: 5,
+        weight: 15,
       ),
     ]).animate(_ctrl);
 
@@ -88,10 +76,7 @@ class _SplashViewState extends State<SplashView>
               child: Center(
                 child: CustomPaint(
                   size: const Size(120, 138.8),
-                  painter: _ThreadsPainter(
-                    draw: _draw.value,
-                    undraw: _undraw.value,
-                  ),
+                  painter: _ThreadsPainter(draw: _draw.value),
                 ),
               ),
             ),
@@ -102,56 +87,17 @@ class _SplashViewState extends State<SplashView>
   }
 }
 
-/// Filled draw/undraw animator for the Threads logo.
-///
-/// HOW IT WORKS
-/// ─────────────
-/// The technique is: clipPath + thick stroke.
-///
-///   1. canvas.clipPath(_logoFillPath)
-///      Restricts all drawing to the exact filled logo shape (outer body with
-///      the inner "a" counter punched out via PathFillType.evenOdd).
-///
-///   2. Inside that clip, draw an animated PathMetric stroke — same draw/undraw
-///      logic as a pen-on-paper animation — but with a strokeWidth thick enough
-///      to flood-fill the logo body as the pen travels along the outline.
-///
-///   3. Because the clip mask matches the filled logo exactly, the thick stroke
-///      never bleeds outside the logo boundary, and the evenOdd hole keeps the
-///      "a" counter permanently transparent.
-///
-/// The result looks like the logo is being "painted in" by a moving brush, then
-/// "erased" as the tail retracts — not a top-to-bottom wipe.
-///
-/// STROKE WIDTH
-/// ─────────────
-/// The logo body (outer ring) is ~30 viewBox units thick. The pen traces the
-/// outer edge of the shape, so a strokeWidth of 60 (30 each side) guarantees
-/// the brush floods the full body width. The clip masks any excess.
-///
-/// PATHS
-/// ─────
-/// _logoFillPath  — compound filled path for clipping (evenOdd fill type)
-/// _pathOuter     — outer edge outline for PathMetric animation
-/// _pathInner     — inner counter edge for PathMetric animation
-///
-/// All coordinates are 1:1 from the official SVG viewBox 0 0 166 192.
 class _ThreadsPainter extends CustomPainter {
   final double draw;
-  final double undraw;
 
-  const _ThreadsPainter({required this.draw, required this.undraw});
+  const _ThreadsPainter({required this.draw});
 
   static const double _vbW = 166.0;
   static const double _vbH = 192.0;
 
-  // ── FILLED CLIP PATH ──────────────────────────────────────────────────────
-  // Combined outer + inner with evenOdd so the counter is a hole.
-  // Used as the clipPath — nothing drawn here is visible outside the logo.
   static Path get _logoFillPath {
     final p = Path()..fillType = PathFillType.evenOdd;
 
-    // Outer body
     p.moveTo(84.0664, 0.5);
     p.lineTo(85.375, 0.515625);
     p.cubicTo(112.756, 0.988837, 133.992, 10.345, 148.577, 28.2881);
@@ -211,7 +157,6 @@ class _ThreadsPainter extends CustomPainter {
     p.lineTo(83.9609, 0.5);
     p.lineTo(84.0664, 0.5);
 
-    // Inner counter — evenOdd makes this a transparent hole in the clip
     p.moveTo(91.8711, 97.9678);
     p.cubicTo(89.9664, 97.9678, 88.0274, 98.0231, 86.0518, 98.1377);
     p.cubicTo(77.3984, 98.6364, 71.5623, 100.983, 67.9326, 104.211);
@@ -229,7 +174,6 @@ class _ThreadsPainter extends CustomPainter {
     return p;
   }
 
-  // ── OUTER EDGE PATH (for PathMetric stroke animation) ─────────────────────
   static Path get _pathOuter {
     final p = Path();
     p.moveTo(84.0664, 0.5);
@@ -293,7 +237,6 @@ class _ThreadsPainter extends CustomPainter {
     return p;
   }
 
-  // ── INNER COUNTER EDGE PATH (for PathMetric stroke animation) ─────────────
   static Path get _pathInner {
     final p = Path();
     p.moveTo(91.8711, 97.9678);
@@ -322,19 +265,12 @@ class _ThreadsPainter extends CustomPainter {
     canvas.save();
     canvas.scale(scaleX, scaleY);
 
-    // Step 1: Clip all subsequent drawing to the exact filled logo shape.
-    // PathFillType.evenOdd means the inner counter hole is excluded from
-    // the clip region — anything drawn there will be invisible.
     canvas.clipPath(_logoFillPath);
 
-    // Step 2: Draw an animated thick-stroke PathMetric along the outline.
-    // The stroke width (60 units) floods the full body of the logo as the
-    // pen travels. The clip from Step 1 keeps it perfectly within the shape.
     final paint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
-      ..strokeWidth =
-          60.0 // floods the logo body; clip handles any excess
+      ..strokeWidth = 60.0
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..isAntiAlias = true;
@@ -347,10 +283,9 @@ class _ThreadsPainter extends CustomPainter {
     final total = lenOuter + lenInner;
 
     final globalEnd = draw * total;
-    final globalStart = undraw * total;
 
-    _drawSegment(canvas, mOuter, globalStart, globalEnd, 0, paint);
-    _drawSegment(canvas, mInner, globalStart, globalEnd, lenOuter, paint);
+    _drawSegment(canvas, mOuter, globalEnd, 0, paint);
+    _drawSegment(canvas, mInner, globalEnd, lenOuter, paint);
 
     canvas.restore();
   }
@@ -358,17 +293,15 @@ class _ThreadsPainter extends CustomPainter {
   void _drawSegment(
     Canvas canvas,
     List<PathMetric> metrics,
-    double globalStart,
     double globalEnd,
     double offset,
     Paint paint,
   ) {
     double pos = offset;
     for (final m in metrics) {
-      final localS = (globalStart - pos).clamp(0.0, m.length);
       final localE = (globalEnd - pos).clamp(0.0, m.length);
-      if (localE > localS) {
-        canvas.drawPath(m.extractPath(localS, localE), paint);
+      if (localE > 0) {
+        canvas.drawPath(m.extractPath(0, localE), paint);
       }
       pos += m.length;
       if (pos >= globalEnd) break;
@@ -376,6 +309,5 @@ class _ThreadsPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _ThreadsPainter old) =>
-      old.draw != draw || old.undraw != undraw;
+  bool shouldRepaint(covariant _ThreadsPainter old) => old.draw != draw;
 }
