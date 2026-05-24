@@ -66,7 +66,7 @@ class _SplashViewState extends State<SplashView>
         widget.child,
         AnimatedBuilder(
           animation: _ctrl,
-          builder: (_, __) => Opacity(
+          builder: (_, context) => Opacity(
             opacity: _overlayFade.value,
             child: ColoredBox(
               color: Colors.black,
