@@ -132,5 +132,7 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Author
 
-**Junaid Jamel**  
-[GitHub](https://github.com/junaidjamel) · [LinkedIn](https://www.linkedin.com/in/junaid-jamel/)
+**Junaid Jamel**
+
+[![GitHub](https://img.shields.io/badge/GitHub-junaidjamel-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/junaidjamel)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-junaid--jamel-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/junaid-jamel/)
