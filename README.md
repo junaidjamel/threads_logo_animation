@@ -5,7 +5,7 @@ A Flutter splash screen that hand-draws the Threads logo stroke by stroke, then 
 <br/>
 
 <p align="center">
-  <img src="assets/animation.gif" alt="Threads logo animation" width="280"/>
+  <img src="assets/animation.gif" alt="Threads logo animation"/>
 </p>
 
 <br/>
