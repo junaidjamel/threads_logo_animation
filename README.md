@@ -14,7 +14,7 @@ A Flutter splash screen that hand-draws the Threads logo stroke by stroke, then 
 
 ## How it works
 
-Everything lives in two files: `lib/splash.dart` (the animation) and `lib/main.dart` (the entry point). No packages, no assets — just Flutter's canvas.
+Everything lives in two files: `lib/splash.dart` (the animation) and `lib/main.dart` (the entry point). No packages, no assets, just Flutter's canvas.
 
 ### 1. The controller
 
@@ -40,7 +40,7 @@ _overlayFade = TweenSequence<double>([
 ]).animate(_ctrl);
 ```
 
-The drawing finishes before the fade starts — the logo is always fully visible for a moment before disappearing.
+The drawing finishes before the fade starts, the logo is always fully visible for a moment before disappearing.
 
 ### 2. Two separate paths
 
@@ -122,19 +122,11 @@ flutter pub get
 flutter run
 ```
 
-Wrap your root widget with `SplashView` and you're done:
-
-```dart
-void main() {
-  runApp(SplashView(child: const MyApp()));
-}
-```
-
 ---
 
 ## License
 
-MIT © [Junaid Jamel](https://github.com/junaidjamel)
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 
